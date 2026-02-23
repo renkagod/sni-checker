@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 import os
+import random
 import signal
 import ssl
 import sys
@@ -24,14 +25,14 @@ except Exception:
     Fore = _F(); Style = _S()
     USE_COLOR = False
 
-from tqdm import tqdm  # да, ты это забывал импортить
+from tqdm import tqdm
 
 CONFIG = {
-    "server_ip": "234.234.234.234",   # IP твоего сервера
-    "port": 443,   # порт инбаунда
+    "server_ip": "234.234.234.234",   # Дефолтный IP
+    "port": 443,                     # Дефолтный порт
     "health_path": "/",
-    "timeout": 5.0, # сколько ждать ответа от SNI, прежде чем считать его не рабочим. Измеряется в секундах.
-    "concurrency": 100, # скорость проверки SNI в секунду. Выбирайте исходя из вашего соединения.
+    "timeout": 5.0,                  # Таймаут по умолчанию
+    "concurrency": 100,              # Параллельность по умолчанию
     "strict_http": False,
 }
 
@@ -112,11 +113,6 @@ def fmt_status(status: str) -> str:
     return f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
 
 def load_sni_sources(sni_path: Path) -> List[str]:
-    """
-    Если sni_path — папка: собрать все *.txt внутри (рекурсивно нет, только верхний уровень).
-    Если sni_path — файл: прочитать его как список SNI.
-    Пустые строки и строки с # игнорируются.
-    """
     snis: List[str] = []
     if sni_path.is_dir():
         txt_files = sorted([p for p in sni_path.iterdir() if p.suffix.lower() == ".txt" and p.is_file()])
@@ -127,7 +123,7 @@ def load_sni_sources(sni_path: Path) -> List[str]:
     else:
         print(f"Не найдено ни файла, ни папки: {sni_path}", file=sys.stderr)
         return []
-    # дедуп в порядке появления
+    
     seen = set()
     uniq = []
     for s in snis:
@@ -144,31 +140,36 @@ def _read_one_list(path: Path) -> List[str]:
         print(f"Не удалось прочитать {path}: {e}", file=sys.stderr)
         return []
 
-async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: bool, strict: bool,
-                   concurrency: int, no_color: bool):
+async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: bool, 
+                   concurrency: int, no_color: bool, shuffle: bool):
 
     global USE_COLOR
     if no_color:
         USE_COLOR = False
 
+    if shuffle:
+        random.shuffle(domains)
+
     results_jsonl = out_dir / "results.jsonl"
+    working_txt = out_dir / "working.txt"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Открываем results.jsonl в append, line-buffered
-    f = results_jsonl.open("a", encoding="utf-8", buffering=1)
+    f_json = results_jsonl.open("a", encoding="utf-8", buffering=1)
+    f_work = working_txt.open("a", encoding="utf-8", buffering=1)
 
-    def safe_write(line: str):
-        f.write(line + "\n")
-        f.flush()
+    def safe_write_json(line: str):
+        f_json.write(line + "\n")
+        f_json.flush()
         if fsync_enabled:
-            os.fsync(f.fileno())
+            os.fsync(f_json.fileno())
+
+    def safe_write_work(sni: str):
+        f_work.write(sni + "\n")
+        f_work.flush()
+        if fsync_enabled:
+            os.fsync(f_work.fileno())
 
     total = len(domains)
-    if total == 0:
-        print("Список SNI пуст. Положи .txt файлы в папку sni/ или укажи файл через --sni-path.", file=sys.stderr)
-        f.close()
-        return
-
     ok = blocked = inc = 0
     start_ts = time.perf_counter()
 
@@ -195,8 +196,11 @@ async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: 
                 return
             res = await probe_sni(s, cfg)
             jl = json.dumps(asdict(res), ensure_ascii=False)
+            
             async with lock:
-                safe_write(jl)
+                safe_write_json(jl)
+                if res.status == "WORKING":
+                    safe_write_work(s)
 
             status_str = f"[{res.status:10}]"
             if USE_COLOR:
@@ -218,53 +222,56 @@ async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: 
         stop_flag = True
         tqdm.write("Получен сигнал, завершаю…")
     finally:
-        f.close()
+        f_json.close()
+        f_work.close()
 
     dt = time.perf_counter() - start_ts
     print("\n=== ИТОГИ ===")
     print(f"WORKING: {ok} | BLOCKED: {blocked} | INCONCLUSIVE: {inc} | total: {ok+blocked+inc}/{total} | time: {dt:.1f}s")
-    print(f"Логи: {results_jsonl}")
+    print(f"Полные логи: {results_jsonl}")
+    print(f"Список рабочих SNI: {working_txt}")
 
 def main():
-    ap = argparse.ArgumentParser(description="SNI watcher: читает SNI из папки/файла, ничего не добавляет в списки")
-    ap.add_argument("--sni-path", default="sni.txt", help="Путь к папке с *.txt или к одному .txt файлу (по умолчанию: ./sni)")
-    ap.add_argument("--out-dir", default="scan_out", help="Каталог для логов (results.jsonl)")
-    ap.add_argument("--strict", action="store_true", help="Требовать видимый HTTP-ответ")
-    ap.add_argument("--concurrency", type=int, default=None, help="Параллельность")
+    ap = argparse.ArgumentParser(description="SNI watcher: проверка доменов через Reality")
+    ap.add_argument("--ip", help=f"IP сервера (по умолчанию: {CONFIG['server_ip']})")
+    ap.add_argument("--port", type=int, help=f"Порт сервера (по умолчанию: {CONFIG['port']})")
+    ap.add_argument("--timeout", type=float, help=f"Таймаут соединения (по умолчанию: {CONFIG['timeout']})")
+    ap.add_argument("--sni-path", default="sni.txt", help="Путь к файлу или папке со списками SNI")
+    ap.add_argument("--out-dir", default="scan_out", help="Каталог для результатов")
+    ap.add_argument("--strict", action="store_true", help="Требовать корректный HTTP-ответ")
+    ap.add_argument("--concurrency", type=int, help="Кол-во одновременных проверок")
+    ap.add_argument("--shuffle", action="store_true", help="Перемешать список доменов перед проверкой")
     ap.add_argument("--no-color", action="store_true", help="Отключить цветной вывод")
-    ap.add_argument("--no-fsync", action="store_true", help="Не делать fsync (быстрее, но менее надёжно)")
+    ap.add_argument("--no-fsync", action="store_true", help="Отключить принудительную запись на диск")
     args = ap.parse_args()
 
     cfg = dict(CONFIG)
-    if args.strict:
-        cfg["strict_http"] = True
-    if args.concurrency:
-        cfg["concurrency"] = max(1, int(args.concurrency))
+    if args.ip: cfg["server_ip"] = args.ip
+    if args.port: cfg["port"] = args.port
+    if args.timeout: cfg["timeout"] = args.timeout
+    if args.strict: cfg["strict_http"] = True
+    if args.concurrency: cfg["concurrency"] = max(1, int(args.concurrency))
 
     sni_path = Path(args.sni_path)
     domains = load_sni_sources(sni_path)
     if not domains:
-        print("Пустой набор SNI. Проверь --sni-path.", file=sys.stderr)
+        print("Список SNI пуст.", file=sys.stderr)
         sys.exit(1)
 
-    out_dir = Path(args.out_dir)
-    fsync_enabled = not args.no_fsync
-
-    print(f"Точек: {len(domains)} | target {cfg['server_ip']}:{cfg['port']} | strict={cfg['strict_http']} | conc={cfg['concurrency']}")
-    print(f"Вывод: {out_dir}/results.jsonl\n")
-
+    print(f"Запуск: {len(domains)} SNI | цель {cfg['server_ip']}:{cfg['port']} | таймаут {cfg['timeout']}с")
+    
     try:
         asyncio.run(run_scan(
             domains=domains,
             cfg=cfg,
-            out_dir=out_dir,
-            fsync_enabled=fsync_enabled,
-            strict=args.strict,
+            out_dir=Path(args.out_dir),
+            fsync_enabled=not args.no_fsync,
             concurrency=cfg["concurrency"],
-            no_color=args.no_color
+            no_color=args.no_color,
+            shuffle=args.shuffle
         ))
     except KeyboardInterrupt:
-        print("\nПрервано пользователем. Всё, что успели, уже записано в results.jsonl.")
+        pass
 
 if __name__ == "__main__":
     main()
