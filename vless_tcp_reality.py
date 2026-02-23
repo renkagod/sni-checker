@@ -11,6 +11,7 @@ import ssl
 import sys
 import time
 import traceback
+from datetime import datetime
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import List, Optional
@@ -28,11 +29,11 @@ except Exception:
 from tqdm import tqdm
 
 CONFIG = {
-    "server_ip": "",                 # Без хардкода
-    "port": 443,                     # Дефолт 443
+    "server_ip": "",                 
+    "port": 443,                     
     "health_path": "/",
-    "timeout": 5.0,                  # Таймаут по умолчанию
-    "concurrency": 100,              # Параллельность по умолчанию
+    "timeout": 5.0,                  
+    "concurrency": 100,              
     "strict_http": False,
 }
 
@@ -140,7 +141,7 @@ def _read_one_list(path: Path) -> List[str]:
         print(f"Не удалось прочитать {path}: {e}", file=sys.stderr)
         return []
 
-async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: bool, 
+async def run_scan(domains: List[str], cfg: dict, run_dir: Path, fsync_enabled: bool, 
                    concurrency: int, no_color: bool, shuffle: bool):
 
     global USE_COLOR
@@ -150,12 +151,12 @@ async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: 
     if shuffle:
         random.shuffle(domains)
 
-    results_jsonl = out_dir / "results.jsonl"
-    working_txt = out_dir / "working.txt"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    results_jsonl = run_dir / "results.jsonl"
+    working_txt = run_dir / "working.txt"
+    run_dir.mkdir(parents=True, exist_ok=True)
 
-    f_json = results_jsonl.open("a", encoding="utf-8", buffering=1)
-    f_work = working_txt.open("a", encoding="utf-8", buffering=1)
+    f_json = results_jsonl.open("w", encoding="utf-8", buffering=1)
+    f_work = working_txt.open("w", encoding="utf-8", buffering=1)
 
     def safe_write_json(line: str):
         f_json.write(line + "\n")
@@ -228,8 +229,7 @@ async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: 
     dt = time.perf_counter() - start_ts
     print("\n=== ИТОГИ ===")
     print(f"WORKING: {ok} | BLOCKED: {blocked} | INCONCLUSIVE: {inc} | total: {ok+blocked+inc}/{total} | time: {dt:.1f}s")
-    print(f"Полные логи: {results_jsonl}")
-    print(f"Список рабочих SNI: {working_txt}")
+    print(f"Результаты этого скана в папке: {run_dir}")
 
 def main():
     ap = argparse.ArgumentParser(description="SNI watcher: проверка доменов через Reality")
@@ -237,7 +237,7 @@ def main():
     ap.add_argument("-p", "--port", type=int, default=443, help="Порт сервера (по умолчанию: 443)")
     ap.add_argument("-t", "--timeout", type=float, default=5.0, help="Таймаут соединения (по умолчанию: 5.0)")
     ap.add_argument("-f", "--sni-path", default="sni.txt", help="Путь к файлу или папке со списками SNI")
-    ap.add_argument("-o", "--out-dir", default="scan_out", help="Каталог для результатов")
+    ap.add_argument("-o", "--out-dir", default="scan_out", help="Базовый каталог для результатов")
     ap.add_argument("-s", "--strict", action="store_true", help="Требовать корректный HTTP-ответ")
     ap.add_argument("-c", "--concurrency", type=int, default=100, help="Кол-во одновременных проверок")
     ap.add_argument("--shuffle", action="store_true", help="Перемешать список доменов перед проверкой")
@@ -258,13 +258,17 @@ def main():
         print("Список SNI пуст.", file=sys.stderr)
         sys.exit(1)
 
+    # Создаем уникальную папку для этого запуска
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = Path(args.out_dir) / f"run_{timestamp}"
+    
     print(f"Запуск: {len(domains)} SNI | цель {cfg['server_ip']}:{cfg['port']} | таймаут {cfg['timeout']}с")
     
     try:
         asyncio.run(run_scan(
             domains=domains,
             cfg=cfg,
-            out_dir=Path(args.out_dir),
+            run_dir=run_dir,
             fsync_enabled=not args.no_fsync,
             concurrency=cfg["concurrency"],
             no_color=args.no_color,
