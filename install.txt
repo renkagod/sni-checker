@@ -1,0 +1,10 @@
+python -m venv venv
+
+Windows:
+venv\Scripts\activate
+
+Linux/Macos:
+source venv/bin/activate
+
+pip install -r reqs.txt
+python vless_tcp_reality.py
