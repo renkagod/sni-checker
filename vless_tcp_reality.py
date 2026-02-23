@@ -28,8 +28,8 @@ except Exception:
 from tqdm import tqdm
 
 CONFIG = {
-    "server_ip": "234.234.234.234",   # Дефолтный IP
-    "port": 443,                     # Дефолтный порт
+    "server_ip": "",                 # Без хардкода
+    "port": 443,                     # Дефолт 443
     "health_path": "/",
     "timeout": 5.0,                  # Таймаут по умолчанию
     "concurrency": 100,              # Параллельность по умолчанию
@@ -233,24 +233,24 @@ async def run_scan(domains: List[str], cfg: dict, out_dir: Path, fsync_enabled: 
 
 def main():
     ap = argparse.ArgumentParser(description="SNI watcher: проверка доменов через Reality")
-    ap.add_argument("--ip", help=f"IP сервера (по умолчанию: {CONFIG['server_ip']})")
-    ap.add_argument("--port", type=int, help=f"Порт сервера (по умолчанию: {CONFIG['port']})")
-    ap.add_argument("--timeout", type=float, help=f"Таймаут соединения (по умолчанию: {CONFIG['timeout']})")
-    ap.add_argument("--sni-path", default="sni.txt", help="Путь к файлу или папке со списками SNI")
-    ap.add_argument("--out-dir", default="scan_out", help="Каталог для результатов")
-    ap.add_argument("--strict", action="store_true", help="Требовать корректный HTTP-ответ")
-    ap.add_argument("--concurrency", type=int, help="Кол-во одновременных проверок")
+    ap.add_argument("-i", "--ip", required=True, help="IP сервера (обязательно)")
+    ap.add_argument("-p", "--port", type=int, default=443, help="Порт сервера (по умолчанию: 443)")
+    ap.add_argument("-t", "--timeout", type=float, default=5.0, help="Таймаут соединения (по умолчанию: 5.0)")
+    ap.add_argument("-f", "--sni-path", default="sni.txt", help="Путь к файлу или папке со списками SNI")
+    ap.add_argument("-o", "--out-dir", default="scan_out", help="Каталог для результатов")
+    ap.add_argument("-s", "--strict", action="store_true", help="Требовать корректный HTTP-ответ")
+    ap.add_argument("-c", "--concurrency", type=int, default=100, help="Кол-во одновременных проверок")
     ap.add_argument("--shuffle", action="store_true", help="Перемешать список доменов перед проверкой")
     ap.add_argument("--no-color", action="store_true", help="Отключить цветной вывод")
     ap.add_argument("--no-fsync", action="store_true", help="Отключить принудительную запись на диск")
     args = ap.parse_args()
 
     cfg = dict(CONFIG)
-    if args.ip: cfg["server_ip"] = args.ip
-    if args.port: cfg["port"] = args.port
-    if args.timeout: cfg["timeout"] = args.timeout
+    cfg["server_ip"] = args.ip
+    cfg["port"] = args.port
+    cfg["timeout"] = args.timeout
+    cfg["concurrency"] = max(1, args.concurrency)
     if args.strict: cfg["strict_http"] = True
-    if args.concurrency: cfg["concurrency"] = max(1, int(args.concurrency))
 
     sni_path = Path(args.sni_path)
     domains = load_sni_sources(sni_path)
