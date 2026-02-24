@@ -24,7 +24,7 @@
 
 Запустите скрипт, указав IP вашего сервера:
 ```bash
-python vless_tcp_reality.py -i 1.2.3.4
+python sni_checker.py -i 1.2.3.4
 ```
 
 ### Основные аргументы:
@@ -40,12 +40,12 @@ python vless_tcp_reality.py -i 1.2.3.4
 
 **Простая проверка с указанием порта:**
 ```bash
-python vless_tcp_reality.py -i 1.2.3.4 -p 8443
+python sni_checker.py -i 1.2.3.4 -p 8443
 ```
 
 **Быстрая проверка с перемешиванием и коротким таймаутом:**
 ```bash
-python vless_tcp_reality.py -i 1.2.3.4 -t 2.5 -c 200 --shuffle
+python sni_checker.py -i 1.2.3.4 -t 2.5 -c 200 --shuffle
 ```
 
 ## Особенности работы
