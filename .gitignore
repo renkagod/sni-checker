@@ -1,5 +1,7 @@
 # Local Gemini Rules
 GEMINI.md
 venv/
-.idea/
-.vscode/
+__pycache__/
+*.pyc
+scan_out/
+results.jsonl
