@@ -231,7 +231,18 @@ async def run_scan(domains: List[str], cfg: dict, run_dir: Path, fsync_enabled: 
     print(f"WORKING: {ok} | BLOCKED: {blocked} | INCONCLUSIVE: {inc} | total: {ok+blocked+inc}/{total} | time: {dt:.1f}s")
     print(f"Результаты этого скана в папке: {run_dir}")
 
+def _configure_stdio_utf8() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+
+
 def main():
+    _configure_stdio_utf8()
     ap = argparse.ArgumentParser(description="SNI watcher: проверка доменов через Reality")
     ap.add_argument("-i", "--ip", required=True, help="IP сервера (обязательно)")
     ap.add_argument("-p", "--port", type=int, default=443, help="Порт сервера (по умолчанию: 443)")

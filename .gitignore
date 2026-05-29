@@ -1,7 +1,21 @@
-# Local Gemini Rules
-GEMINI.md
+# Python
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Scan output
 scan_out/
 results.jsonl
+
+# Local Rust experiments (not part of the published Python tool)
+/target/
+Cargo.lock
+
+# IDE / local notes
+GEMINI.md
+.vscode/
+.idea/

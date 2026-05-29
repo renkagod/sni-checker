@@ -1,2 +1,2 @@
-colorama
-tqdm
+colorama>=0.4.6,<1
+tqdm>=4.66,<5
