@@ -1,6 +1,7 @@
 # SNI Checker
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/renkagod/sni-checker/actions/workflows/ci.yml/badge.svg)](https://github.com/renkagod/sni-checker/actions/workflows/ci.yml)
 
 Инструмент для проверки SNI (Server Name Indication) против вашего сервера Xray/Reality: устанавливает TLS-соединение с подменой SNI и сохраняет рабочие домены.
 
@@ -8,11 +9,17 @@
 
 > **Важно:** инструмент предназначен только для образовательных целей и тестирования собственной инфраструктуры. Вы несёте ответственность за соблюдение законодательства и правил провайдеров при использовании списков доменов и результатов сканирования.
 
+## Особенности
+
+- Параллельная проверка SNI против IP/порта Xray/Reality
+- Результаты в `scan_out/` (JSONL + `working.txt`)
+- Настраиваемые таймаут, concurrency, strict-режим
+
 ## Требования
 
 - Python 3.10+
 
-## Установка
+## Быстрый старт
 
 ```bash
 python -m venv venv

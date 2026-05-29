@@ -1,21 +1,21 @@
 # Python
-venv/
-.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
+venv/
 .pytest_cache/
-.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
 
 # Scan output
 scan_out/
-results.jsonl
 
-# Local Rust experiments (not part of the published Python tool)
-/target/
-Cargo.lock
-
-# IDE / local notes
-GEMINI.md
-.vscode/
+# OS / editor
+.DS_Store
+Thumbs.db
 .idea/
+.vscode/
