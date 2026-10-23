@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/renkagod/sni-checker/actions/workflows/ci.yml/badge.svg)](https://github.com/renkagod/sni-checker/actions/workflows/ci.yml)
+[![Donate](https://img.shields.io/badge/Donate-crypto-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/renkagod/.github/blob/main/DONATE.md)
 
 Инструмент для проверки SNI (Server Name Indication) против вашего сервера Xray/Reality: устанавливает TLS-соединение с подменой SNI и сохраняет рабочие домены.
 
@@ -72,6 +73,10 @@ python sni_checker.py -i 1.2.3.4 -t 2.5 -c 200 --shuffle
 - `results.jsonl` — полный лог (JSON Lines)
 
 Статусы в логе: `WORKING` (TLS прошёл), `BLOCKED` (таймаут/сброс/SSL-ошибка), `INCONCLUSIVE` (прочие случаи).
+
+## Поддержать проект
+
+Если проект оказался полезен, можно поддержать его криптой: [адреса для доната](https://github.com/renkagod/.github/blob/main/DONATE.md).
 
 ## Лицензия
 
